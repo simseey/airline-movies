@@ -277,36 +277,58 @@
   function updatePosterUI() {
     var have = films.filter(function (m) { return posters[m.id]; }).length;
     if (pStatus) pStatus.textContent = have ? have + " of " + films.length + " films have posters saved." : "Posters are not downloaded yet.";
-    if (pBtn) pBtn.textContent = have ? "Refresh posters" : "Download posters";
+    if (pBtn) pBtn.textContent = "Reload all posters";
   }
-  if (pBtn) pBtn.addEventListener("click", function () {
-    if (!navigator.onLine) { pStatus.textContent = "Connect to the internet to download posters."; return; }
-    pBtn.disabled = true;
-    var queue = films.filter(function (m) { return !m.custom; }), done = 0, found = 0, failed = 0;
+  // Fetch posters automatically in the background whenever online.
+  var running = false;
+  function setThumb(m) {
+    var card = listEl.querySelector('[data-id="' + m.id + '"] .thumb');
+    if (card) card.outerHTML = thumbHTML(m);
+  }
+  function fetchPosters(force) {
+    if (running || !navigator.onLine) { if (!navigator.onLine && force) pStatus.textContent = "Connect to the internet to load posters."; return; }
+    var queue = films.filter(function (m) { return !m.custom && (force || !(m.id in posters)); });
+    if (!queue.length) { updatePosterUI(); return; }
+    running = true; if (pBtn) pBtn.disabled = true;
+    var total = queue.length, done = 0, found = 0, failed = 0;
+    var bar = $("#posterBar");
+    function show() {
+      var msg = "Loading posters… " + done + " of " + total;
+      if (bar) { bar.textContent = msg; bar.hidden = false; }
+      pStatus.textContent = msg;
+    }
+    show();
     function next() {
       var m = queue.shift(); if (!m) return Promise.resolve();
       return lookup(m).then(function (url) {
         if (url === null) failed++;
-        else { posters[m.id] = url; if (url) found++; }
+        else { posters[m.id] = url; if (url) { found++; setThumb(m); } }
         return url ? cacheImage(url) : null;
       }).then(function () {
-        done++;
-        pStatus.textContent = "Downloading posters: " + done + " of " + films.length + "…";
-        if (done % 25 === 0) savePosters();
+        done++; show();
+        if (done % 20 === 0) savePosters();
+        if (done === 12 && failed === 12) { queue.length = 0; }
         return next();
       });
     }
-    var workers = []; for (var i = 0; i < 6; i++) workers.push(next());
+    var workers = []; for (var i = 0; i < 4; i++) workers.push(next());
     Promise.all(workers).then(function () {
-      savePosters(); render(); pBtn.disabled = false; updatePosterUI();
-      pStatus.textContent = "Saved posters for " + found + " of " + films.length + " films. Others keep their title tile." +
-        (failed ? " " + failed + " lookups failed; tap again to retry." : "");
+      savePosters(); running = false; if (pBtn) pBtn.disabled = false;
+      if (bar) bar.hidden = true;
+      updatePosterUI();
+      if (failed && !found) {
+        pStatus.textContent = "Couldn’t reach Wikipedia to load posters. They’ll try again next time you open this page online.";
+        if (bar) { bar.textContent = "Posters couldn’t load. They’ll retry next time you’re online."; bar.hidden = false; }
+      }
     });
-  });
+  }
+  if (pBtn) pBtn.addEventListener("click", function () { fetchPosters(true); });
+  window.addEventListener("online", function () { fetchPosters(false); });
 
   setHead();
   render();
   updatePosterUI();
+  setTimeout(function () { fetchPosters(false); }, 800);
   requestAnimationFrame(setHead);
 
   // offline support

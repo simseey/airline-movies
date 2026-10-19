@@ -1,4 +1,4 @@
-const CACHE = "flight-films-v3";
+const CACHE = "flight-films-v4";
 const POSTERS = "flight-films-posters";
 const FILES = ["./", "index.html", "airnz.html", "ba.html", "styles.css", "app.js",
   "airnz-data.js", "ba-data.js", "manifest.webmanifest", "icon-180.png", "icon-512.png"];
