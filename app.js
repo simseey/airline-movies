@@ -16,6 +16,10 @@
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
   }
   var state = load();
+  var PKEY = KEY + ":posters";
+  var posters = {};
+  try { posters = JSON.parse(localStorage.getItem(PKEY)) || {}; } catch (e) {}
+  function savePosters() { try { localStorage.setItem(PKEY, JSON.stringify(posters)); } catch (e) {} }
 
   // ---------- data ----------
   function slug(t, y) { return (t + "-" + (y || "")).toLowerCase().replace(/[^a-z0-9]+/g, "-"); }
@@ -73,25 +77,46 @@
     return imdb + rt;
   }
 
+  var HUES = { Action: 8, Thriller: 350, Horror: 330, Crime: 20, Comedy: 42, Romance: 340, Drama: 215,
+    Animation: 165, Family: 140, Fantasy: 275, "Sci-Fi": 195, Adventure: 30, Documentary: 100, Music: 300,
+    Musical: 300, Biography: 230, History: 35, War: 60, Sport: 120, Western: 25, Mystery: 255, Concert: 300 };
+  function hueFor(m) {
+    var g = (m.g || "").split(",")[0].trim();
+    if (HUES[g] != null) return HUES[g];
+    var h = 0; for (var i = 0; i < m.t.length; i++) h = (h * 31 + m.t.charCodeAt(i)) % 360; return h;
+  }
+  function initials(t) {
+    var w = t.replace(/^(the|a|an)\s+/i, "").replace(/[^\p{L}\p{N}\s]/gu, " ").trim().split(/\s+/);
+    return ((w[0] || "").charAt(0) + (w[1] ? w[1].charAt(0) : "")).toUpperCase();
+  }
+  function thumbHTML(m) {
+    var url = posters[m.id];
+    return '<div class="thumb" style="--h:' + hueFor(m) + '" aria-hidden="true"><span>' + esc(initials(m.t)) + "</span>" +
+      (url ? '<img src="' + esc(url) + '" alt="" loading="lazy" onerror="this.remove()">' : "") + "</div>";
+  }
+
   function cardHTML(m) {
     var w = !!state.watch[m.id], s = !!state.seen[m.id];
     var meta = [m.y, m.c && m.c !== "NotRated" ? m.c : "", m.dur, m.g].filter(Boolean).join(", ");
     var q = encodeURIComponent(m.t + (m.y ? " " + m.y : ""));
     return '<article class="film' + (s ? " is-watched" : "") + (openId === m.id ? " open" : "") + '" data-id="' + m.id + '">' +
-      '<div class="film-main">' +
-        '<button class="film-body" data-act="toggle" aria-expanded="' + (openId === m.id) + '">' +
+      '<button class="film-body" data-act="toggle" aria-expanded="' + (openId === m.id) + '">' +
+        thumbHTML(m) +
+        '<div class="film-text">' +
           '<div class="film-title">' + esc(m.t) + (m.isNew ? '<span class="badge-new">New</span>' : "") + "</div>" +
           '<div class="meta">' + esc(meta) + "</div>" +
-          '<div class="ratings">' + ratingsHTML(m) + "</div>" +
-        "</button>" +
+          (m.d ? '<p class="desc">' + esc(m.d) + "</p>" : "") +
+        "</div>" +
+      "</button>" +
+      '<div class="film-foot">' +
+        '<div class="ratings">' + ratingsHTML(m) + "</div>" +
         '<div class="actions">' +
           '<button class="act watch" data-act="watch" aria-pressed="' + w + '" aria-label="' + (w ? "Remove from watch list" : "Add to watch list") + '">' + (w ? ICON_BOOKMARK_ON : ICON_BOOKMARK) + "</button>" +
           '<button class="act seen" data-act="seen" aria-pressed="' + s + '" aria-label="' + (s ? "Mark as not watched" : "Mark as watched") + '">' + ICON_CHECK + "</button>" +
         "</div>" +
       "</div>" +
       '<div class="details">' +
-        (m.d ? "<p>" + esc(m.d) + "</p>" : '<p class="cast">No description yet.</p>') +
-        (m.cast ? '<p class="cast"><strong>Cast:</strong> ' + esc(m.cast) + "</p>" : "") +
+        (m.cast ? '<p class="cast"><strong>Cast:</strong> ' + esc(m.cast) + "</p>" : '<p class="cast">No cast details yet.</p>') +
         '<div class="links">' +
           '<a href="https://www.imdb.com/find/?q=' + q + '" target="_blank" rel="noopener">IMDb page</a>' +
           '<a href="https://www.rottentomatoes.com/search?search=' + encodeURIComponent(m.t) + '" target="_blank" rel="noopener">Rotten Tomatoes</a>' +
@@ -224,8 +249,64 @@
     save(); films = build(); dlg.close(); render();
   });
 
+  // ---------- posters ----------
+  var pBtn = $("#posterBtn"), pStatus = $("#posterStatus");
+  function norm(t) { return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim(); }
+  function cleanTitle(t) { return t.replace(/[“”"™]/g, "").replace(/\s+Reo M[aā]ori$/i, "").replace(/\s*\(\d{4}\)$/, "").trim(); }
+  function lookup(m) {
+    var title = cleanTitle(m.t);
+    var q = title + (m.y ? " " + m.y : "") + " film";
+    var url = "https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrnamespace=0&gsrlimit=1" +
+      "&prop=pageimages&piprop=thumbnail&pithumbsize=240&pilicense=any&gsrsearch=" + encodeURIComponent(q);
+    return fetch(url).then(function (r) { return r.json(); }).then(function (j) {
+      var pages = j && j.query && j.query.pages; if (!pages) return "";
+      var p = pages[Object.keys(pages)[0]];
+      if (!p || !p.thumbnail) return "";
+      var words = norm(title).split(" ").filter(function (x) { return x.length > 2 && ["the", "and", "movie"].indexOf(x) === -1; });
+      var pt = norm(p.title);
+      if (words.length && !words.some(function (x) { return pt.indexOf(x) !== -1; })) return "";
+      return p.thumbnail.source;
+    }).catch(function () { return null; });
+  }
+  function cacheImage(url) {
+    if (!("caches" in window) || !url) return Promise.resolve();
+    return caches.open("flight-films-posters").then(function (c) {
+      return c.match(url).then(function (hit) { if (!hit) return c.add(url).catch(function () {}); });
+    }).catch(function () {});
+  }
+  function updatePosterUI() {
+    var have = films.filter(function (m) { return posters[m.id]; }).length;
+    if (pStatus) pStatus.textContent = have ? have + " of " + films.length + " films have posters saved." : "Posters are not downloaded yet.";
+    if (pBtn) pBtn.textContent = have ? "Refresh posters" : "Download posters";
+  }
+  if (pBtn) pBtn.addEventListener("click", function () {
+    if (!navigator.onLine) { pStatus.textContent = "Connect to the internet to download posters."; return; }
+    pBtn.disabled = true;
+    var queue = films.filter(function (m) { return !m.custom; }), done = 0, found = 0, failed = 0;
+    function next() {
+      var m = queue.shift(); if (!m) return Promise.resolve();
+      return lookup(m).then(function (url) {
+        if (url === null) failed++;
+        else { posters[m.id] = url; if (url) found++; }
+        return url ? cacheImage(url) : null;
+      }).then(function () {
+        done++;
+        pStatus.textContent = "Downloading posters: " + done + " of " + films.length + "…";
+        if (done % 25 === 0) savePosters();
+        return next();
+      });
+    }
+    var workers = []; for (var i = 0; i < 6; i++) workers.push(next());
+    Promise.all(workers).then(function () {
+      savePosters(); render(); pBtn.disabled = false; updatePosterUI();
+      pStatus.textContent = "Saved posters for " + found + " of " + films.length + " films. Others keep their title tile." +
+        (failed ? " " + failed + " lookups failed; tap again to retry." : "");
+    });
+  });
+
   setHead();
   render();
+  updatePosterUI();
   requestAnimationFrame(setHead);
 
   // offline support
