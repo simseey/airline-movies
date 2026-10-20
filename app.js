@@ -72,14 +72,37 @@
     if (on) { var k = fkey(m); map[k.n + "|" + k.y] = 1; }
   }
   loadShared();
-  // One-off move of marks saved by earlier versions (stored per airline)
-  if (state.watch && Object.keys(state.watch).length + Object.keys(state.seen).length) {
-    films.forEach(function (m) {
-      if (state.watch[m.id]) setFlag(shared.watch, m, true);
-      if (state.seen[m.id]) setFlag(shared.seen, m, true);
-    });
-    state.watch = {}; state.seen = {}; save(); saveShared();
+  // One-off move of marks saved by earlier versions, which were stored per airline.
+  // Runs on every page for all three airlines, so it doesn't matter which page is opened first.
+  function keyFromId(id) {
+    var mm = String(id).match(/^(.*?)-(\d{4})?$/); if (!mm) return null;
+    var y = mm[2] ? +mm[2] : "";
+    var n = mm[1].replace(/-/g, " ").trim();
+    if (y && n.slice(-5) === " " + y) n = n.slice(0, -5);
+    n = n.replace(/^(disney s|stephen king s|dr seuss)\s+/, "").replace(/^star wars episode [ivx]+ /, "star wars ")
+         .replace(/^dune part one$/, "dune").replace("sorcerer s stone", "philosopher s stone").replace(/^the /, "");
+    return n + "|" + y;
   }
+  (function migrate() {
+    var changed = false;
+    ["airnz", "ba", "sq"].forEach(function (a) {
+      var k = "ifeguide:" + a, old;
+      try { old = JSON.parse(localStorage.getItem(k)); } catch (e) { old = null; }
+      if (!old) return;
+      var moved = false;
+      ["watch", "seen"].forEach(function (f) {
+        Object.keys(old[f] || {}).forEach(function (id) {
+          var m = a === cfg.id ? films.find(function (x) { return x.id === id; }) : null;
+          if (m) setFlag(shared[f], m, true);
+          else { var kk = keyFromId(id); if (kk) shared[f][kk] = 1; }
+          moved = true;
+        });
+        old[f] = {};
+      });
+      if (moved) { changed = true; try { localStorage.setItem(k, JSON.stringify(old)); } catch (e) {} }
+    });
+    if (changed) { saveShared(); state = load(); }
+  })();
   function isW(m) { return has(shared.watch, m); }
   function isS(m) { return has(shared.seen, m); }
 
