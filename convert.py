@@ -5,10 +5,10 @@ for line in open(src, encoding="utf-8"):
     line=line.rstrip("\n")
     if not line.strip() or line.startswith("#"): continue
     p=line.split("|")
-    while len(p)<10: p.append("")
-    t,y,c,g,d,cast,imdb,rt,n,dur=[x.strip() for x in p[:10]]
+    while len(p)<12: p.append("")
+    t,y,c,g,d,cast,imdb,rt,n,dur,img,leave=[x.strip() for x in p[:12]]
     rows.append([t, int(y) if y else None, c, g, d, cast,
-                 float(imdb) if imdb else None, int(rt) if rt else None, 1 if n=="N" else 0, dur])
+                 float(imdb) if imdb else None, int(rt) if rt else None, 1 if n=="N" else 0, dur, img, 1 if leave=="L" else 0])
 with open(dst,"w",encoding="utf-8") as f:
     f.write("window.MOVIES=")
     json.dump(rows,f,ensure_ascii=False,separators=(",",":"))

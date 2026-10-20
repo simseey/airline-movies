@@ -1,7 +1,7 @@
-const CACHE = "flight-films-v4";
+const CACHE = "flight-films-v5";
 const POSTERS = "flight-films-posters";
 const FILES = ["./", "index.html", "airnz.html", "ba.html", "styles.css", "app.js",
-  "airnz-data.js", "ba-data.js", "manifest.webmanifest", "icon-180.png", "icon-512.png"];
+  "airnz-data.js", "ba-data.js", "sq.html", "sq-data.js", "manifest.webmanifest", "icon-180.png", "icon-512.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
 });
@@ -14,9 +14,9 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   const u = new URL(e.request.url);
   // Posters: cache first so they show offline
-  if (u.hostname === "upload.wikimedia.org") {
+  if (u.origin !== location.origin && (e.request.destination === "image" || u.hostname === "upload.wikimedia.org")) {
     e.respondWith(caches.open(POSTERS).then(c => c.match(e.request.url).then(hit => hit ||
-      fetch(e.request.url).then(res => { if (res.ok) c.put(e.request.url, res.clone()); return res; }))));
+      fetch(e.request).then(res => { if (res.ok || res.type === "opaque") c.put(e.request.url, res.clone()); return res; }))));
     return;
   }
   if (u.origin !== location.origin) return;

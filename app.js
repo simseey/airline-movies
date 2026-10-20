@@ -30,7 +30,7 @@
 
   function build() {
     var list = RAW.map(function (r) {
-      return { t: r[0], y: r[1], c: r[2], g: r[3], d: r[4], cast: r[5], imdb: r[6], rt: r[7], isNew: !!r[8], dur: r[9] || "", custom: false };
+      return { t: r[0], y: r[1], c: r[2], g: r[3], d: r[4], cast: r[5], imdb: r[6], rt: r[7], isNew: !!r[8], dur: r[9] || "", poster: r[10] || "", leaving: !!r[11], custom: false };
     });
     state.custom.forEach(function (m) { list.push(Object.assign({}, m, { custom: true })); });
     list.forEach(function (m) { m.id = slug(m.t, m.y); m.k = sortKey(m.t); m.L = letterOf(m.k); });
@@ -90,7 +90,7 @@
     return ((w[0] || "").charAt(0) + (w[1] ? w[1].charAt(0) : "")).toUpperCase();
   }
   function thumbHTML(m) {
-    var url = posters[m.id];
+    var url = posters[m.id] || m.poster;
     return '<div class="thumb" style="--h:' + hueFor(m) + '" aria-hidden="true"><span>' + esc(initials(m.t)) + "</span>" +
       (url ? '<img src="' + esc(url) + '" alt="" loading="lazy" onerror="this.remove()">' : "") + "</div>";
   }
@@ -103,7 +103,7 @@
       '<button class="film-body" data-act="toggle" aria-expanded="' + (openId === m.id) + '">' +
         thumbHTML(m) +
         '<div class="film-text">' +
-          '<div class="film-title">' + esc(m.t) + (m.isNew ? '<span class="badge-new">New</span>' : "") + "</div>" +
+          '<div class="film-title">' + esc(m.t) + (m.isNew ? '<span class="badge-new">New</span>' : "") + (m.leaving ? '<span class="badge-leave">Leaving soon</span>' : "") + "</div>" +
           '<div class="meta">' + esc(meta) + "</div>" +
           (m.d ? '<p class="desc">' + esc(m.d) + "</p>" : "") +
         "</div>" +
@@ -271,11 +271,11 @@
   function cacheImage(url) {
     if (!("caches" in window) || !url) return Promise.resolve();
     return caches.open("flight-films-posters").then(function (c) {
-      return c.match(url).then(function (hit) { if (!hit) return c.add(url).catch(function () {}); });
+      return c.match(url).then(function (hit) { if (!hit) return c.add(url).catch(function () { return fetch(url, { mode: "no-cors" }).then(function (r) { return c.put(url, r); }); }).catch(function () {}); });
     }).catch(function () {});
   }
   function updatePosterUI() {
-    var have = films.filter(function (m) { return posters[m.id]; }).length;
+    var have = films.filter(function (m) { return posters[m.id] || m.poster; }).length;
     if (pStatus) pStatus.textContent = have ? have + " of " + films.length + " films have posters saved." : "Posters are not downloaded yet.";
     if (pBtn) pBtn.textContent = "Reload all posters";
   }
@@ -287,7 +287,7 @@
   }
   function fetchPosters(force) {
     if (running || !navigator.onLine) { if (!navigator.onLine && force) pStatus.textContent = "Connect to the internet to load posters."; return; }
-    var queue = films.filter(function (m) { return !m.custom && (force || !(m.id in posters)); });
+    var queue = films.filter(function (m) { return !m.custom && !m.poster && (force || !(m.id in posters)); });
     if (!queue.length) { updatePosterUI(); return; }
     running = true; if (pBtn) pBtn.disabled = true;
     var total = queue.length, done = 0, found = 0, failed = 0;
@@ -329,6 +329,10 @@
   render();
   updatePosterUI();
   setTimeout(function () { fetchPosters(false); }, 800);
+  if (navigator.onLine) setTimeout(function () {
+    var list = films.filter(function (m) { return m.poster; }).map(function (m) { return m.poster; });
+    (function step(i) { if (i >= list.length) return; Promise.all(list.slice(i, i + 6).map(cacheImage)).then(function () { step(i + 6); }); })(0);
+  }, 2500);
   requestAnimationFrame(setHead);
 
   // offline support

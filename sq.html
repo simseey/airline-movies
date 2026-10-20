@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SQ films">
+<meta name="theme-color" content="#1d3364">
+<title>Singapore Airlines movies</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="styles.css">
+<style>:root{--accent:#1d3364;}</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <a class="home-link" href="index.html" aria-label="All airlines">‹</a>
+    <h1>Singapore Airlines<small>KrisWorld movies, October 2026</small></h1>
+    <button class="add-btn" id="addBtn">Add a movie</button>
+  </div>
+  <input class="search" id="search" type="search" placeholder="Search titles, cast or genre" autocomplete="off" aria-label="Search films">
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-view="all" aria-selected="true">All<span class="count" id="c-all"></span></button>
+    <button class="tab" role="tab" data-view="new" aria-selected="false">New<span class="count" id="c-new"></span></button>
+    <button class="tab" role="tab" data-view="watch" aria-selected="false">Watch list<span class="count" id="c-watch"></span></button>
+    <button class="tab" role="tab" data-view="seen" aria-selected="false">Watched<span class="count" id="c-seen"></span></button>
+  </nav>
+  <div class="poster-bar" id="posterBar" role="status" hidden></div>
+</header>
+<main>
+  <div id="list"></div>
+  <div class="posters">
+    <button class="btn" id="posterBtn">Reload all posters</button>
+    <p id="posterStatus" aria-live="polite"></p>
+  </div>
+  <p class="note">All 384 movies listed on KrisWorld (krisworld.singaporeair.com) in October 2026, with KrisWorld’s own poster images. “New” marks films added to KrisWorld this month; “Leaving soon” is KrisWorld’s own flag. Ratings are approximate and blank where unknown; tap a film for links to the latest scores.</p>
+</main>
+<div class="alpha" id="alpha" aria-hidden="true"></div>
+<div class="alpha-pop" id="alphaPop" aria-hidden="true"></div>
+<dialog id="addDlg">
+  <form class="dlg" id="addForm">
+    <h2>Add a movie</h2>
+    <label for="f-title">Title</label><input id="f-title" name="title" required>
+    <div class="row">
+      <div><label for="f-year">Year</label><input id="f-year" name="year" inputmode="numeric"></div>
+      <div><label for="f-genre">Genre</label><input id="f-genre" name="genre"></div>
+    </div>
+    <label for="f-desc">Description</label><textarea id="f-desc" name="desc"></textarea>
+    <label for="f-cast">Cast</label><input id="f-cast" name="cast">
+    <div class="row">
+      <div><label for="f-imdb">IMDb rating</label><input id="f-imdb" name="imdb" inputmode="decimal" placeholder="7.2"></div>
+      <div><label for="f-rt">Rotten Tomatoes %</label><input id="f-rt" name="rt" inputmode="numeric" placeholder="85"></div>
+    </div>
+    <label class="check"><input type="checkbox" name="isnew"> New release</label>
+    <div class="btns"><button type="button" class="btn" id="addCancel">Cancel</button><button class="btn primary">Save movie</button></div>
+  </form>
+</dialog>
+<script>window.AIRLINE={id:"sq"};</script>
+<script src="sq-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -219,6 +219,12 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 .airline span { opacity: .8; font-size: 14px; }
 .airline.nz { background: #111; }
 .airline.ba { background: #1b2a55; }
+.airline.sq { background: #1d3364; background: linear-gradient(135deg, #1d3364, #2b4c8c); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 .poster-bar { font-size: 12.5px; opacity: .8; padding: 0 0 8px; }
 .poster-bar[hidden] { display: none; }
+.badge-leave {
+  display: inline-block; vertical-align: 2px; margin-left: 6px;
+  font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line);
+  padding: 1px 6px; border-radius: 5px;
+}
