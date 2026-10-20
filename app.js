@@ -43,6 +43,46 @@
   }
   var films = build();
 
+  // ---------- shared watch list / watched (across all airlines) ----------
+  var SKEY = "ifeguide:shared";
+  var shared = { watch: {}, seen: {} };
+  function loadShared() {
+    try { var x = JSON.parse(localStorage.getItem(SKEY)); if (x) shared = { watch: x.watch || {}, seen: x.seen || {} }; } catch (e) {}
+  }
+  function saveShared() { try { localStorage.setItem(SKEY, JSON.stringify(shared)); } catch (e) {} }
+  // Same film can be titled slightly differently by each airline, so match on a normalised title + year (±1).
+  function fkey(m) {
+    var t = String(m.t).toLowerCase().replace(/’/g, "'").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    var y = m.y || "";
+    var paren = t.match(/\((\d{4})\)/); if (paren) { if (!y) y = +paren[1]; t = t.replace(paren[0], ""); }
+    t = t.replace(/^(disney's|stephen king's|dr\. seuss')\s+/, "")
+         .replace(/star wars: episode [ivx]+ - /, "star wars: ")
+         .replace("dune: part one", "dune").replace("sorcerer's stone", "philosopher's stone")
+         .replace(/[^a-z0-9]+/g, " ").trim().replace(/^the /, "");
+    return { n: t, y: y ? +y : "" };
+  }
+  function variants(m) {
+    var k = fkey(m), out = [k.n + "|" + k.y];
+    if (k.y) out.push(k.n + "|" + (k.y - 1), k.n + "|" + (k.y + 1), k.n + "|");
+    return out;
+  }
+  function has(map, m) { return variants(m).some(function (v) { return map[v]; }); }
+  function setFlag(map, m, on) {
+    variants(m).forEach(function (v) { delete map[v]; });
+    if (on) { var k = fkey(m); map[k.n + "|" + k.y] = 1; }
+  }
+  loadShared();
+  // One-off move of marks saved by earlier versions (stored per airline)
+  if (state.watch && Object.keys(state.watch).length + Object.keys(state.seen).length) {
+    films.forEach(function (m) {
+      if (state.watch[m.id]) setFlag(shared.watch, m, true);
+      if (state.seen[m.id]) setFlag(shared.seen, m, true);
+    });
+    state.watch = {}; state.seen = {}; save(); saveShared();
+  }
+  function isW(m) { return has(shared.watch, m); }
+  function isS(m) { return has(shared.seen, m); }
+
   // ---------- DOM ----------
   var $ = function (s) { return document.querySelector(s); };
   var listEl = $("#list"), searchEl = $("#search"), alphaEl = $("#alpha"), popEl = $("#alphaPop");
@@ -59,8 +99,8 @@
   }
 
   function matches(m) {
-    if (view === "watch" && !state.watch[m.id]) return false;
-    if (view === "seen" && !state.seen[m.id]) return false;
+    if (view === "watch" && !isW(m)) return false;
+    if (view === "seen" && !isS(m)) return false;
     if (view === "new" && !m.isNew) return false;
     if (!query) return true;
     var hay = (m.t + " " + (m.cast || "") + " " + (m.g || "")).toLowerCase();
@@ -96,7 +136,7 @@
   }
 
   function cardHTML(m) {
-    var w = !!state.watch[m.id], s = !!state.seen[m.id];
+    var w = isW(m), s = isS(m);
     var meta = [m.y, m.c && m.c !== "NotRated" ? m.c : "", m.dur, m.g].filter(Boolean).join(", ");
     var q = encodeURIComponent(m.t + (m.y ? " " + m.y : ""));
     return '<article class="film' + (s ? " is-watched" : "") + (openId === m.id ? " open" : "") + '" data-id="' + m.id + '">' +
@@ -148,8 +188,8 @@
     alphaEl.style.display = letters.length > 3 ? "" : "none";
     $("#c-all").textContent = films.length;
     $("#c-new").textContent = films.filter(function (m) { return m.isNew; }).length;
-    $("#c-watch").textContent = films.filter(function (m) { return state.watch[m.id]; }).length;
-    $("#c-seen").textContent = films.filter(function (m) { return state.seen[m.id]; }).length;
+    $("#c-watch").textContent = films.filter(isW).length;
+    $("#c-seen").textContent = films.filter(isS).length;
   }
 
   function updateCard(id) {
@@ -158,8 +198,8 @@
     if (!m) return;
     if ((view === "watch" || view === "seen") && !matches(m)) { render(); return; }
     if (el) el.outerHTML = cardHTML(m);
-    $("#c-watch").textContent = films.filter(function (f) { return state.watch[f.id]; }).length;
-    $("#c-seen").textContent = films.filter(function (f) { return state.seen[f.id]; }).length;
+    $("#c-watch").textContent = films.filter(isW).length;
+    $("#c-seen").textContent = films.filter(isS).length;
   }
 
   listEl.addEventListener("click", function (e) {
@@ -173,15 +213,16 @@
       card.classList.toggle("open", openId === id);
       btn.setAttribute("aria-expanded", String(openId === id));
     } else if (act === "watch") {
-      if (state.watch[id]) delete state.watch[id]; else state.watch[id] = 1;
-      save(); updateCard(id);
+      var fw = films.find(function (f) { return f.id === id; });
+      setFlag(shared.watch, fw, !isW(fw)); saveShared(); updateCard(id);
     } else if (act === "seen") {
-      if (state.seen[id]) delete state.seen[id]; else state.seen[id] = 1;
-      save(); updateCard(id);
+      var fs = films.find(function (f) { return f.id === id; });
+      setFlag(shared.seen, fs, !isS(fs)); saveShared(); updateCard(id);
     } else if (act === "delete") {
       if (!confirm("Delete this movie from the list?")) return;
       state.custom = state.custom.filter(function (m) { return slug(m.t, m.y) !== id; });
-      delete state.watch[id]; delete state.seen[id];
+      var fd = films.find(function (f) { return f.id === id; });
+      if (fd) { setFlag(shared.watch, fd, false); setFlag(shared.seen, fd, false); saveShared(); }
       save(); films = build(); render();
     }
   });
@@ -324,6 +365,9 @@
   }
   if (pBtn) pBtn.addEventListener("click", function () { fetchPosters(true); });
   window.addEventListener("online", function () { fetchPosters(false); });
+
+  window.addEventListener("pageshow", function (e) { if (e.persisted) { loadShared(); render(); } });
+  window.addEventListener("storage", function (e) { if (e.key === SKEY) { loadShared(); render(); } });
 
   setHead();
   render();
